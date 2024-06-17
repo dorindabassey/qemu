@@ -29,6 +29,8 @@
 #include "ui/console.h"
 #include "ui/input.h"
 #include "ui/sdl2.h"
+#include "ui/egl-helpers.h"
+#include "qemu/error-report.h"
 
 static void sdl2_set_scanout_mode(struct sdl2_console *scon, bool scanout)
 {
@@ -245,4 +247,23 @@ void sdl2_gl_scanout_flush(DisplayChangeListener *dcl,
     egl_fb_blit(&scon->win_fb, &scon->guest_fb, !scon->y0_top);
 
     SDL_GL_SwapWindow(scon->real_window);
+}
+
+void sdl2_gl_scanout_dmabuf(DisplayChangeListener *dcl,
+                           QemuDmaBuf *dmabuf)
+{
+#ifdef CONFIG_GBM
+    struct sdl2_console *scon = container_of(dcl, struct sdl2_console, dcl);
+
+    SDL_GL_MakeCurrent(scon->real_window, scon->winctx);
+    egl_dmabuf_import_texture(dmabuf);
+    if (!dmabuf->texture) {
+        return;
+    }
+    sdl2_gl_scanout_texture(dcl, dmabuf->texture,
+                            dmabuf->y0_top,
+                               dmabuf->backing_width, dmabuf->backing_height,
+                               dmabuf->x, dmabuf->y, dmabuf->width,
+                               dmabuf->height, NULL);
+#endif
 }
